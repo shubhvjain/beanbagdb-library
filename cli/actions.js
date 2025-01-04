@@ -123,7 +123,7 @@ export const addDatabase = async (dbName) => {
     type: "couchdb",
     url,
     encryption_key: encryptionKey,
-    folder_link: folderLink,
+    folder_link: dbFolderPath,
   });
 
   await saveConfig(config);
