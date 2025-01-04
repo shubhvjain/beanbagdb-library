@@ -6,7 +6,6 @@ import { homedir } from 'os';
 import jwt from 'jsonwebtoken';
 
 import { BeanBagDB_CouchDB } from './bbdb_couch.js';
-
 const loadConfigFile = async () => {
   if (!existsSync(configPath)) {
     console.log(`Config file not found!`);
@@ -89,6 +88,18 @@ const logShutdown = async ()=>{
   await logActivity('server_stopped',{port:PORT})
 }
 
+let bbdbs = {}
+
+const get_bbdb_object =  (db_details)=>{
+  if(!bbdbs[db_details.name]){
+    // create a new instance of bbdb
+    bbdbs[db_details.name] = new BeanBagDB_CouchDB(db_details.url,db_details.name,db_details.encryption_key)
+    //await bbdbs[db_details.name].ready()
+  }
+  // Check if the method exists in the BBDB class
+  return bbdbs[db_details.name]
+}
+
 //////////// Server routes //////////////
 
 
@@ -139,39 +150,29 @@ app.post('/hi', (req, res) => {
   res.json({ message: `Hi ${user}. Here is your token for database ${database}. Use this to access BBDB. This token is valid for ${expiresIn} minutes`, token });
 });
 
+app.get("/help",(req,res)=>{
+  res.json({baseurl:"POST /bbdb/:action",message:`The BBDB API calls require a valid JWT token obtained from POST /hi.All requests are POST. They either take on input or json input as specified below`,endpoints:BeanBagDB_CouchDB.rest_enabled})
+})
 
-
-// bbdb route 
-
-// to hold multiple instance of BBDB
-let bbdbs = {}
 
 app.post('/bbdb/:action', authenticateJWT, async (req, res) => {
   const { action } = req.params; // The method name
   const db_details = req.database
   const params = req.body;       // Parameters for the method
-  console.log(db_details)
-  if(!bbdbs[db_details.name]){
-    // create a new instance of bbdb
-    bbdbs[db_details.name] = new BeanBagDB_CouchDB(db_details.url,db_details.name,db_details.encryption_key)
-  }
-  // Check if the method exists in the BBDB class
-  let bbdb = bbdbs[db_details.name]
+  let bbdb = get_bbdb_object(db_details)
 
-
-  if (typeof bbdb[action] === 'function') {
-    try {bbdb
+  if (BeanBagDB_CouchDB.rest_enabled[action]){
+    try {
       // Dynamically call the method
       const result = await bbdb[action](params);
       res.status(200).json({ success: true, result });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
-
-  } else {
-    res.status(400).json({ success: false, error: `Action '${action}' is not a valid method.` });
+  }else{
+    res.status(400).json({ success: false, error: `Action '${action}' is not a valid method.`, api: BeanBagDB_CouchDB.rest_enabled });
   }
-  //res.json(db_details)
+
   
 });
 
