@@ -8,12 +8,24 @@ const userHomeDir = os.homedir();
 const configFilePath = path.join(userHomeDir, configFileName);
 const databaseFolderName = 'bbdb'; // Root folder for databases
 const rootDatabasePath = path.join(userHomeDir, databaseFolderName);
-
+const log_file_path  = path.join(rootDatabasePath, "rest_logs.txt");
 
 const validateDatabaseName = (dbName) => /^[a-zA-Z1-9]+$/.test(dbName);
 
+const generate_random_code = ()=>{
+  const randomNumber = Math.floor(Math.random() * (999999 - 100000 + 1)) + 100000; // Generate a random number between 100000 and 999999
+  return randomNumber.toString(16)
+}
+
 export const initConfigFile = async () => {
-  const defaultConfig = { databases: [] };
+  const defaultConfig = { 
+    database: {}, 
+    rest:{
+      jwt:`${generate_random_code()}${generate_random_code()}${generate_random_code()}${generate_random_code()}`,
+      jwt_expiry: 60,
+      log_file_path: log_file_path
+    }
+  };
   await fs.writeFile(configFilePath, JSON.stringify(defaultConfig, null, 2));
 };
 
@@ -76,7 +88,7 @@ export const addDatabase = async (dbName) => {
   }
 
   const config = await getConfig();
-  if (config.databases.some(db => db.name === dbName)) {
+  if (config.database[dbName]) {
     console.error(`Database "${dbName}" already defined.`);
     return;
   }
@@ -118,13 +130,14 @@ export const addDatabase = async (dbName) => {
     console.log(`Database folder "${dbFolderPath}" already exists.`);
   }
 
-  config.databases.push({
+  config.database[dbName]= {
     name: dbName,
     type: "couchdb",
     url,
     encryption_key: encryptionKey,
     folder_link: dbFolderPath,
-  });
+    created:Math.floor(Date.now() / 1000)
+  };
 
   await saveConfig(config);
   console.log(`Database "${dbName}" added successfully.You can now use it with the CLI and the REST API`);
