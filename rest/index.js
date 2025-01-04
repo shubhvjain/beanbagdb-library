@@ -5,8 +5,7 @@ import path from 'path';
 import { homedir } from 'os';
 import jwt from 'jsonwebtoken';
 
-
-
+import { BeanBagDB_CouchDB } from './bbdb_couch.js';
 
 const loadConfigFile = async () => {
   if (!existsSync(configPath)) {
@@ -49,7 +48,7 @@ const logActivity = async (activity, details = {}) => {
   // Append to the CSV log file
   try {
     await fs.appendFile(LOG_FILE_PATH, csvEntry);  // Use fs directly
-    console.log(`${activity} logged successfully in CSV format!`);
+    //console.log(`${activity} logged successfully in CSV format!`);
   } catch (err) {
     console.error('Error logging activity:', err);
   }
@@ -76,25 +75,21 @@ const writeCSVLogHeaderIfNeeded = async () => {
 // Middleware to validate JWT and attach the database information
 const authenticateJWT = (req, res, next) => {
   const token = req.headers['authorization']?.split(' ')[1]; // Get the JWT from the Authorization header
-
-  if (!token) {
-    return res.status(403).json({ error: 'No token provided' });
-  }
+  if (!token) {return res.status(403).json({ error: 'No token provided' })}
 
   jwt.verify(token, JWT_SECRET_KEY, (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
-    }
-
+    if (err) {return res.status(403).json({ error: 'Invalid or expired token' });}
     // Attach database info to the request object
-    req.database = decoded.database;
-
+    req.database = config.database[decoded.database];
     next(); // Continue to the next middleware/route
   });
 };
 
+const logShutdown = async ()=>{
+  await logActivity('server_stopped',{port:PORT})
+}
 
-//////////// Server start from here //////////////
+//////////// Server routes //////////////
 
 
 const app = express();
@@ -111,10 +106,7 @@ const JWT_SECRET_KEY = config.rest.jwt; // JWT secret from config
 const LOG_FILE_PATH = config.rest.log_file_path;
 // Load the config file before starting the server
 
-
 await writeCSVLogHeaderIfNeeded()
-
-
 
 app.get('/',(req,res)=>{
   res.json( {message:"Say hi! to your database"})
@@ -125,44 +117,65 @@ app.post('/hi', (req, res) => {
   const { database, user, min } = req.body;
 
   // Validate that both database and user are provided
-  if (!database || !user) {
-    return res.status(400).json({ error: 'Both database and user are required' });
-  }
+  if (!database || !user) {return res.status(400).json({ error: 'Both database and user are required' });}
 
   // Check if the database exists in the config
-  if (!config.database || !config.database[database]) {
-    return res.status(400).json({ error: 'Database not defined in config' });
-  }
+  if (!config.database || !config.database[database]) {return res.status(400).json({ error: 'Database not defined in config' });}
 
   // Default expiry from config
   let expiresIn = config.rest.jwt_expiry; // Default expiry in minutes from config
 
   // If min is provided, validate it
   if (min) {
-    if (typeof min !== 'number' || min < 5 || min > (6 * 30 * 24 * 60)) { // 5 minutes to 6 months
-      return res.status(400).json({ error: 'Invalid min value. Must be between 5 minutes and 6 months.' });
-    }
+    if (typeof min !== 'number' || min < 5 || min > (6 * 30 * 24 * 60)) { return res.status(400).json({ error: 'Invalid min value. Must be between 5 minutes and 6 months.' });}
     expiresIn = min; // Override the default with the provided min
   }
 
   // Generate JWT with the database name and user
   const payload = { database, user };
-  const token = jwt.sign(payload, JWT_SECRET_KEY, { expiresIn: expiresIn * 60 }); // JWT expects expiry in seconds
-
-  const expiryTimestamp = new Date(Date.now() + expiresIn * 60 * 1000).toISOString();  // Get the expiry timestamp as ISO string
+  const token = jwt.sign(payload, JWT_SECRET_KEY, { expiresIn: expiresIn * 60 }); 
+  const expiryTimestamp = new Date(Date.now() + expiresIn * 60 * 1000).toISOString();  
   logActivity('jwt_token_issued', {database,expiryTimestamp,user:user.replace(/,/g, ' '),expiresInMin:expiresIn});
   res.json({ message: `Hi ${user}. Here is your token for database ${database}. Use this to access BBDB. This token is valid for ${expiresIn} minutes`, token });
 });
 
 
-// Example API route that uses the JWT and includes the database information
-app.get('/api/database', authenticateJWT, (req, res) => {
-  // Use the database information attached by the authenticateJWT middleware
-  res.json({
-    database: req.database,
-    message: `You are accessing data for the ${req.database} database.`
-  });
+
+// bbdb route 
+
+// to hold multiple instance of BBDB
+let bbdbs = {}
+
+app.post('/bbdb/:action', authenticateJWT, async (req, res) => {
+  const { action } = req.params; // The method name
+  const db_details = req.database
+  const params = req.body;       // Parameters for the method
+  console.log(db_details)
+  if(!bbdbs[db_details.name]){
+    // create a new instance of bbdb
+    bbdbs[db_details.name] = new BeanBagDB_CouchDB(db_details.url,db_details.name,db_details.encryption_key)
+  }
+  // Check if the method exists in the BBDB class
+  let bbdb = bbdbs[db_details.name]
+
+
+  if (typeof bbdb[action] === 'function') {
+    try {bbdb
+      // Dynamically call the method
+      const result = await bbdb[action](params);
+      res.status(200).json({ success: true, result });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+
+  } else {
+    res.status(400).json({ success: false, error: `Action '${action}' is not a valid method.` });
+  }
+  //res.json(db_details)
+  
 });
+
+////////// Starting the server
 
 // Start the server
 const PORT = process.env.PORT || 3000;
@@ -172,11 +185,6 @@ app.listen(PORT, async () =>{
   await logActivity("server_started",{port:PORT})
 });
 
-
-
-const logShutdown = async ()=>{
-  await logActivity('server_stopped',{port:PORT})
-}
 
 // Listen for termination signals tolog server shutdown
 process.on('SIGINT', async () => {
