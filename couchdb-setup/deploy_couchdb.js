@@ -1,6 +1,8 @@
-const fs = require("fs");
-const { execSync } = require("child_process");
-const readline = require("readline");
+import fs from "fs";
+import { execSync } from "child_process";
+import readline from "readline";
+
+
 
 // JSON file to store CouchDB instances
 const DB_FILE = "couchdb_instances.json";
@@ -61,8 +63,7 @@ const askQuestion = (query) =>
 
     console.log("Creating database...");
     execSync(
-      `curl -X PUT http://${username}:${password}@localhost:${port}/${dbName}`,
-      { stdio: "inherit" }
+      `curl -X PUT http://${username}:${password}@localhost:${port}/${dbName}`
     );
 
     if (externalAccess) {

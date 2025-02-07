@@ -1,15 +1,28 @@
 #!/bin/bash
-
 echo "Updating package list and installing required dependencies..."
 sudo apt update -y && sudo apt upgrade -y
-sudo apt install -y docker.io nginx curl jq
 
-echo "Starting Docker service..."
+# Install Docker
+echo "Installing Docker..."
+sudo apt install -y docker.io
 sudo systemctl enable docker
 sudo systemctl start docker
 
-echo "Setting up Nginx..."
+# Install Nginx
+echo "Installing Nginx..."
+sudo apt install -y nginx
 sudo systemctl enable nginx
 sudo systemctl start nginx
 
-echo "Installation complete! Docker and Nginx are ready to use."
+# Install Node.js and npm (LTS version)
+echo "Installing Node.js and npm..."
+sudo apt install -y nodejs npm
+
+# Verify installations
+echo "Installed versions:"
+docker --version
+nginx -v
+node -v
+npm -v
+
+echo "Installation complete! Docker, Nginx, and Node.js are ready to use."
