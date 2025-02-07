@@ -47,24 +47,16 @@ const askQuestion = (query) =>
 
     let username = await askQuestion("Enter username: ");
     let existingUser = Object.values(instances).find((inst) => inst.user === username);
-    let password = existingUser ? existingUser.password : Math.random().toString(36).slice(-12);
+    let password = existingUser ? existingUser.password : Math.random().toString(36).slice(-10);
 
     // Save instance details
     instances[port] = { db: dbName, user: username, password, external: externalAccess };
     fs.writeFileSync(DB_FILE, JSON.stringify(instances, null, 2));
 
     console.log("Starting CouchDB Docker container...");
-    execSync(
-      `docker run -d --name couchdb_${port} -p ${port}:5984 \
-      -e COUCHDB_USER=${username} -e COUCHDB_PASSWORD=${password} \
-      couchdb:latest`,
-      { stdio: "inherit" }
-    );
-
+    execSync(`sudo docker run -d --name couchdb_${port} -p ${port}:5984 -e COUCHDB_USER=${username} -e COUCHDB_PASSWORD=${password} couchdb:latest`);
     console.log("Creating database...");
-    execSync(
-      `curl -X PUT http://${username}:${password}@localhost:${port}/${dbName}`
-    );
+    execSync(`curl -X PUT http://${username}:${password}@localhost:${port}/${dbName}`);
 
     if (externalAccess) {
       console.log("Setting up Nginx proxy...");
