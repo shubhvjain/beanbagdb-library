@@ -18,8 +18,10 @@ sudo systemctl start nginx
 echo "Installing Node.js and npm..."
 sudo apt install -y nodejs npm
 
+
 # Verify installations
 echo "Installed versions:"
+sudo usermod -aG docker $USER
 docker --version
 nginx -v
 node -v
