@@ -131,3 +131,7 @@ dist
 
 
 dev.js
+temp
+notes.txt
+
+couchdb_instances.json

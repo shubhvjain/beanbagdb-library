@@ -1,7 +1,7 @@
 {
   "name": "beanbagdb_library",
   "version": "0.0.5",
-  "description": "A library of plugins and apps for BeanBagDB",
+  "description": "A library of apps and integrations for BeanBagDB",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -17,7 +17,19 @@
   },
   "homepage": "https://github.com/shubhvjain/beanbagdb-library#readme",
   "dependencies": {
-    "axios": "^1.7.8"
+    "ajv": "^8.17.1",
+    "axios": "^1.7.8",
+    "beanbagdb": "^0.6.0",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "nano": "^10.1.4"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "dotenv": "^16.4.6",
+    "nodemon": "^3.1.9"
+  },
+  "bin": {
+    "bbdb": "./cli/bbdb.js"
+  }
 }
